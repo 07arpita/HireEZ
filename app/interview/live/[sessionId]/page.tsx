@@ -18,7 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { mockHuggingFaceClient } from '@/lib/ai';
+import { AIClient } from '@/lib/ai';
 import { toast } from 'sonner';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { VoiceAgent } from '@/components/interview/VoiceAgent';
@@ -67,8 +67,10 @@ export default function LiveInterviewPage({ params }: { params: { sessionId: str
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const aiClientRef = useRef<AIClient | null>(null);
 
   useEffect(() => {
+    aiClientRef.current = new AIClient();
     fetchSession();
     return () => {
       if (timerRef.current) {
@@ -190,8 +192,12 @@ export default function LiveInterviewPage({ params }: { params: { sessionId: str
         `Q${index + 1}: ${questions[index]}\nA${index + 1}: ${response}`
       ).join('\n\n');
 
+      if (!aiClientRef.current) {
+        throw new Error('AI Client not initialized');
+      }
+
       // Evaluate interview using AI
-      const evaluation = await mockHuggingFaceClient.evaluateInterview(
+      const evaluation = await aiClientRef.current.evaluateInterview(
         transcript,
         session?.job_role || 'Software Developer',
         session?.key_skills || []
