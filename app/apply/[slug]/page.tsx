@@ -109,7 +109,7 @@ export default function ApplicationFormPage({ params }: { params: { slug: string
         setLoading(false);
         return;
       }
-      setFormData({ title: form.title, description: form.description, fields: [] });
+      setFormData({ title: form.title ?? '', description: form.description ?? '', fields: [] });
       // Fetch real fields for this form
       console.log('Fetching fields for formId:', form.id);
       const { data: realFields, error: fieldsError } = await supabase
