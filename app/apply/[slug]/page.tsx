@@ -109,7 +109,7 @@ export default function ApplicationFormPage({ params }: { params: { slug: string
         setLoading(false);
         return;
       }
-      setFormData({ title: form.title ?? '', description: form.description ?? '', fields: [] });
+      setFormData({ title: form.title, description: form.description, fields: [] });
       // Fetch real fields for this form
       console.log('Fetching fields for formId:', form.id);
       const { data: realFields, error: fieldsError } = await supabase
@@ -203,15 +203,17 @@ export default function ApplicationFormPage({ params }: { params: { slug: string
       // Insert into form_submissions, using mock field responses for name/email/phone
       const { data: submissionRows, error: submissionError } = await supabase
         .from('form_submissions')
-        .insert({
-          form_id: formId,
-          candidate_email: responses['mock-email'] || '',
-          candidate_name: responses['mock-full-name'] || '',
-          status: 'new',
-          submitted_at: new Date().toISOString(),
-          ip_address: '',
-          user_agent: ''
-        })
+        .insert([
+          {
+            form_id: formId,
+            candidate_email: (responses['mock-email'] as string) ?? '',
+            candidate_name: (responses['mock-full-name'] as string) ?? '',
+            status: 'new',
+            submitted_at: new Date().toISOString(),
+            ip_address: '',
+            user_agent: ''
+          }
+        ])
         .select();
       if (submissionError || !submissionRows || !submissionRows.length) {
         toast.error('Failed to submit application');
