@@ -84,8 +84,13 @@ export default function CustomizePage({ params }: { params: { resumeId: string }
   }, [user, params.resumeId]);
 
   const fetchResume = async () => {
+    if (!supabase) {
+      console.error('Supabase client not initialized in fetchResume.');
+      setLoading(false);
+      return;
+    }
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabase!
         .from('resumes')
         .select('*')
         .eq('id', params.resumeId)
@@ -125,7 +130,7 @@ export default function CustomizePage({ params }: { params: { resumeId: string }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resume || !user) return;
+    if (!resume || !user || !supabase) return;
 
     setSubmitting(true);
 
@@ -156,7 +161,7 @@ export default function CustomizePage({ params }: { params: { resumeId: string }
       const sessionId = `interview_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Save interview session to database
-      const { data: sessionData, error: sessionError } = await supabase
+      const { data: sessionData, error: sessionError } = await supabase!
         .from('interview_sessions')
         .insert({
           recruiter_id: user.id,
@@ -175,7 +180,7 @@ export default function CustomizePage({ params }: { params: { resumeId: string }
       if (sessionError) throw sessionError;
 
       // Get user profile for recruiter name
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('full_name')
         .eq('id', user.id)

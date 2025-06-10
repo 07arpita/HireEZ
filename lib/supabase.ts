@@ -3,51 +3,41 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Validate environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables');
-  throw new Error('Missing Supabase environment variables');
+// It's generally better to throw errors early in development if critical environment variables are missing.
+// For production, you might want more sophisticated error handling, but for now, ensure these are present.
+if (!supabaseUrl) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable.');
 }
 
-// Validate URL format
-const isValidUrl = supabaseUrl?.includes('supabase.co') || false;
-const isValidKey = supabaseAnonKey?.startsWith('eyJ') || false;
-
-if (supabaseUrl && supabaseAnonKey && !isValidUrl) {
-  console.error('Invalid Supabase URL format. Should be: https://your-project-id.supabase.co');
+if (!supabaseAnonKey) {
+  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable.');
 }
 
-if (supabaseUrl && supabaseAnonKey && !isValidKey) {
-  console.error('Invalid Supabase anon key format. Should start with: eyJ...');
-}
-
-// Create client only if we have valid credentials
-export const supabase = (supabaseUrl && supabaseAnonKey && isValidUrl && isValidKey)
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce'
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'recruitai-web'
-        }
-      },
-      db: {
-        schema: 'public'
-      },
-      realtime: {
-        params: {
-          eventsPerSecond: 10
-        }
-      }
-    })
-  : null;
+// Create the Supabase client instance
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'recruitai-web',
+    },
+  },
+  db: {
+    schema: 'public',
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
+});
 
 // Test Supabase connection
-supabase?.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange((event, session) => {
   console.log('Supabase auth state changed:', event, session?.user?.id);
 });
 
@@ -317,6 +307,41 @@ export type Database = {
           created_at?: string;
         };
       };
+      job_roles: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          requirements: string | null;
+          responsibilities: string | null;
+          required_skills: string[];
+          preferred_skills: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          requirements?: string | null;
+          responsibilities?: string | null;
+          required_skills?: string[];
+          preferred_skills?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          description?: string | null;
+          requirements?: string | null;
+          responsibilities?: string | null;
+          required_skills?: string[];
+          preferred_skills?: string[];
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -340,7 +365,6 @@ export type FormField = Database['public']['Tables']['form_fields']['Row'];
 export type FormSubmission = Database['public']['Tables']['form_submissions']['Row'];
 export type FormFieldResponse = Database['public']['Tables']['form_field_responses']['Row'];
 
-// Insert types
 export type UserInsert = Database['public']['Tables']['users']['Insert'];
 export type ResumeInsert = Database['public']['Tables']['resumes']['Insert'];
 export type InterviewSessionInsert = Database['public']['Tables']['interview_sessions']['Insert'];
@@ -350,7 +374,6 @@ export type FormFieldInsert = Database['public']['Tables']['form_fields']['Inser
 export type FormSubmissionInsert = Database['public']['Tables']['form_submissions']['Insert'];
 export type FormFieldResponseInsert = Database['public']['Tables']['form_field_responses']['Insert'];
 
-// Update types
 export type UserUpdate = Database['public']['Tables']['users']['Update'];
 export type ResumeUpdate = Database['public']['Tables']['resumes']['Update'];
 export type InterviewSessionUpdate = Database['public']['Tables']['interview_sessions']['Update'];
@@ -360,188 +383,90 @@ export type FormFieldUpdate = Database['public']['Tables']['form_fields']['Updat
 export type FormSubmissionUpdate = Database['public']['Tables']['form_submissions']['Update'];
 export type FormFieldResponseUpdate = Database['public']['Tables']['form_field_responses']['Update'];
 
-// Utility functions for common operations with proper error handling
-export const supabaseHelpers = {
-  // Check if Supabase is properly configured
-  isConfigured: () => Boolean(supabase),
-  
-  // Get current user with error handling
-  getCurrentUser: async () => {
-    if (!supabase) return null;
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error('Error getting current user:', error);
-        return null;
-      }
-      return user;
-    } catch (error) {
-      console.error('Error in getCurrentUser:', error);
-      return null;
-    }
-  },
-  
-  // Check if user is authenticated with error handling
-  isAuthenticated: async () => {
-    if (!supabase) return false;
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error checking authentication:', error);
-        return false;
-      }
-      return Boolean(session?.user);
-    } catch (error) {
-      console.error('Error in isAuthenticated:', error);
+export type JobRole = Database['public']['Tables']['job_roles']['Row'];
+export type JobRoleInsert = Database['public']['Tables']['job_roles']['Insert'];
+export type JobRoleUpdate = Database['public']['Tables']['job_roles']['Update'];
+
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  if (!supabase) {
+    console.warn('Supabase client is not initialized.');
+    return false;
+  }
+  try {
+    const { data, error } = await supabase.from('users').select('id').limit(1);
+    if (error) {
+      console.error('Supabase connection check failed:', error.message);
       return false;
     }
-  },
-  
-  // Get user profile with error handling
-  getUserProfile: async (userId: string) => {
-    if (!supabase) return null;
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return null;
-      }
-      
-      return data;
-    } catch (error) {
-      console.error('Error in getUserProfile:', error);
-      return null;
-    }
-  },
-  
-  // Create or update user profile with error handling
-  upsertUserProfile: async (profile: UserInsert) => {
-    if (!supabase) return { data: null, error: { message: 'Supabase not configured' } };
-    
-    try {
-      const result = await supabase
-        .from('users')
-        .upsert(profile, {
-          onConflict: 'id'
-        })
-        .select()
-        .single();
-      
-      return result;
-    } catch (error) {
-      console.error('Error in upsertUserProfile:', error);
-      return { data: null, error };
-    }
-  }
-};
-
-// Export a typed version of the client
-export type SupabaseClient = typeof supabase;
-
-// Connection status checker with proper error handling
-export const checkSupabaseConnection = async (): Promise<boolean> => {
-  if (!supabase) return false;
-  
-  try {
-    const { error } = await supabase.from('users').select('id').limit(1);
-    return !error;
+    console.log('Supabase connection successful.');
+    return true;
   } catch (error) {
-    console.error('Supabase connection check failed:', error);
+    console.error('Supabase connection check failed unexpectedly:', error);
     return false;
   }
 };
 
-// Environment validation helper
 export const validateSupabaseConfig = () => {
-  const issues: string[] = [];
-  
   if (!supabaseUrl) {
-    issues.push('NEXT_PUBLIC_SUPABASE_URL is missing');
-  } else if (!isValidUrl) {
-    issues.push('NEXT_PUBLIC_SUPABASE_URL format is invalid (should contain "supabase.co")');
+    console.error('Environment variable NEXT_PUBLIC_SUPABASE_URL is not set.');
+    return false;
   }
-  
   if (!supabaseAnonKey) {
-    issues.push('NEXT_PUBLIC_SUPABASE_ANON_KEY is missing');
-  } else if (!isValidKey) {
-    issues.push('NEXT_PUBLIC_SUPABASE_ANON_KEY format is invalid (should start with "eyJ")');
+    console.error('Environment variable NEXT_PUBLIC_SUPABASE_ANON_KEY is not set.');
+    return false;
   }
-  
-  return {
-    isValid: issues.length === 0,
-    issues
-  };
+  if (typeof supabaseUrl !== 'string' || !supabaseUrl.includes('supabase.co')) {
+    console.error('Invalid Supabase URL format. Should be: https://your-project-id.supabase.co');
+    return false;
+  }
+  if (typeof supabaseAnonKey !== 'string' || !supabaseAnonKey.startsWith('eyJ')) {
+    console.error('Invalid Supabase anon key format. Should start with: eyJ...');
+    return false;
+  }
+  return true;
 };
 
-// Export validation result for use in components
-export const supabaseConfig = validateSupabaseConfig();
-
-// Fetch a single resume analysis by ID
 export const getResumeAnalysis = async (id: string) => {
   if (!supabase) {
-    throw new Error('Supabase client is not initialized.');
+    console.error('Supabase client not initialized in getResumeAnalysis');
+    return null;
   }
-
-  const { data, error } = await supabase
-    .from('resumes')
-    .select('*')
-    .eq('id', id)
-    .single();
-
+  const { data, error } = await supabase.from('resumes').select('analysis_json').eq('id', id).single();
   if (error) {
     console.error('Error fetching resume analysis:', error);
-    throw new Error(error.message);
+    return null;
   }
-
-  // Log the fetched data to help with debugging
-  console.log('Fetched resume data:', data);
-
-  return data;
+  return data?.analysis_json;
 };
 
-// Fetch job positions
 export const getJobPositions = async () => {
   if (!supabase) {
-    throw new Error('Supabase client is not initialized.');
+    console.error('Supabase client not initialized in getJobPositions');
+    return [];
   }
-
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('id, title, description, requirements, responsibilities, required_skills, preferred_skills');
-
+  const { data, error } = await supabase.from('job_roles').select('*'); // Assuming a job_roles table exists
   if (error) {
     console.error('Error fetching job positions:', error);
-    throw new Error(error.message);
+    return [];
   }
-
   return data || [];
 };
 
-// Fetch all resumes
 export const getAllResumes = async () => {
   if (!supabase) {
-    throw new Error('Supabase client is not initialized.');
+    console.error('Supabase client not initialized in getAllResumes');
+    return [];
   }
-
-  const { data, error } = await supabase
-    .from('resumes')
-    .select('id, candidate_name, candidate_email, phone, summary, education, experience, file_name, file_url, parsed_content, job_description, job_role, analysis_data, created_at');
-
+  const { data, error } = await supabase.from('resumes').select('*').order('created_at', { ascending: false });
   if (error) {
     console.error('Error fetching all resumes:', error);
-    throw new Error(error.message);
+    return [];
   }
-
   return data || [];
 };
 
-// Save resume analysis to the database
 export async function saveResumeAnalysis({
+  user_id,
   job_role,
   job_description,
   resume_url,
@@ -551,6 +476,7 @@ export async function saveResumeAnalysis({
   candidate_email,
   candidate_phone,
 }: {
+  user_id: string;
   job_role: string;
   job_description: string;
   resume_url: string;
@@ -561,107 +487,26 @@ export async function saveResumeAnalysis({
   candidate_phone: string;
 }) {
   if (!supabase) {
-    throw new Error('Supabase client is not initialized');
+    console.error('Supabase client not initialized in saveResumeAnalysis');
+    return { success: false, error: 'Supabase client not initialized' };
+  }
+  const { data, error } = await supabase.from('resumes').insert({
+    user_id,
+    job_role,
+    job_description,
+    resume_url,
+    parsed_content,
+    analysis_json: analysis_data,
+    candidate_name,
+    candidate_email,
+    candidate_phone,
+    status: 'parsed',
+  }).select().single();
+
+  if (error) {
+    console.error('Error saving resume analysis:', error);
+    return { success: false, error };
   }
 
-  try {
-    // Test Supabase connection first
-    const { data: testData, error: testError } = await supabase
-      .from('resumes')
-      .select('id')
-      .limit(1);
-
-    if (testError) {
-      console.error('Supabase connection test failed:', testError);
-      throw new Error(`Supabase connection error: ${testError.message}`);
-    }
-
-    console.log('Starting saveResumeAnalysis with data:', {
-      job_role,
-      job_description,
-      resume_url,
-      candidate_name,
-      candidate_email,
-      candidate_phone,
-      analysis_data
-    });
-
-    // Get the current user's ID
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      console.error('Error getting user:', userError);
-      throw new Error(`Authentication error: ${userError.message}`);
-    }
-    if (!user) {
-      throw new Error('No authenticated user found');
-    }
-    console.log('Current user:', user);
-
-    // First, ensure the user exists in the users table
-    const { error: upsertError } = await supabase
-      .from('users')
-      .upsert([
-        {
-          id: user.id,
-          email: user.email,
-          created_at: new Date().toISOString(),
-        }
-      ]);
-
-    if (upsertError) {
-      console.error('Error creating user:', upsertError);
-      throw new Error(`User creation error: ${upsertError.message}`);
-    }
-    console.log('User record created/updated successfully');
-
-    // Extract file name from resume_url
-    const fileName = resume_url.split('/').pop() || '';
-    console.log('File name extracted:', fileName);
-
-    // Prepare the resume data
-    const resumeData = {
-      recruiter_id: user.id,
-      candidate_name,
-      candidate_email,
-      phone: candidate_phone,
-      skills: analysis_data.skills_analysis?.matching_skills || [],
-      education: analysis_data.education_analysis?.relevant_education || [],
-      experience: analysis_data.experience_analysis?.relevant_experience || [],
-      summary: analysis_data.overall_match?.summary || '',
-      file_url: resume_url,
-      file_name: fileName,
-      parsed_content,
-      job_role,
-      job_description,
-      job_skills: analysis_data.skills_analysis?.matching_skills?.join(', ') || '',
-      job_technologies: analysis_data.technical_fit?.matching_technologies?.join(', ') || '',
-      analysis_data: analysis_data,
-      overall_score: analysis_data.overall_match?.score || 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    console.log('Prepared resume data:', resumeData);
-
-    // Now save the resume analysis with all fields
-    const { data, error } = await supabase
-      .from('resumes')
-      .insert([resumeData])
-      .select();
-
-    if (error) {
-      console.error('Error saving resume:', error);
-      throw new Error(`Resume save error: ${error.message}`);
-    }
-
-    console.log('Resume saved successfully:', data);
-    return { data, error: null };
-  } catch (error: any) {
-    console.error('Error in saveResumeAnalysis:', error);
-    // Check if it's a 402 error
-    if (error.message?.includes('402') || error.code === '402') {
-      throw new Error('Supabase subscription error. Please check your subscription status.');
-    }
-    return { data: null, error };
-  }
+  return { success: true, data };
 }
